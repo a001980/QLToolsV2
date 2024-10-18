@@ -2,22 +2,24 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/sync/singleflight"
 
 	"QLToolsV2/config"
+	_const "QLToolsV2/const"
 )
 
 type CustomClaims struct {
 	BaseClaims
-	BufferTime int64
+	BufferTime int64 `json:"buffer_time"`
 	jwt.RegisteredClaims
 }
 
 type BaseClaims struct {
-	UserID string
+	UserID string `json:"user_id"`
 }
 
 type JWT struct {
@@ -32,8 +34,16 @@ var (
 )
 
 func NewJWT() *JWT {
+	// 获取缓存
+	jwtKey, err := config.GinCache.Get(_const.JWTKey)
+	if err != nil {
+		config.GinLOG.Warn(fmt.Sprintf("获取签名 KEY 失败, 已采用默认值。错误: %s", err.Error()))
+		return &JWT{
+			[]byte(_const.Software),
+		}
+	}
 	return &JWT{
-		[]byte(config.GinConfig.JWT.SigningKey),
+		[]byte(jwtKey.(string)),
 	}
 }
 
@@ -44,7 +54,7 @@ func (j *JWT) CreateClaims(baseClaims BaseClaims) CustomClaims {
 		RegisteredClaims: jwt.RegisteredClaims{
 			NotBefore: jwt.NewNumericDate(time.Now().Add(-time.Millisecond)),                                                // 签名生效时间
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * time.Duration(config.GinConfig.JWT.ExpiresTime))), // 过期时间
-			Issuer:    config.GinConfig.JWT.Issuer,                                                                          // 签名的发行者
+			Issuer:    _const.Software,                                                                                      // 签名的发行者
 		},
 	}
 	return claims
